@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+        <title>My Flask App</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    </head>
+    <body>
+      <main>
+        <img id="photo" src="{{ url_for('static', filename='images/0.jpg') }}" alt="Image will appear here">
+      
+        <div class="layout">
+          <!-- Left side: Previous -->
+          <div class="side-button">
+            <button id="prevBtn">Previous</button>
+          </div>
+      
+          <!-- Middle: Notes, search, TOC, print, logout -->
+          <div class="middle-section">
+            <section id="notesSection">
+              <ul id="notesList"></ul>
+              <h3>Notes</h3>
+              <textarea id="noteInput" rows="8" columns="20" placeholder="Write a note..." autocomplete="off"></textarea>
+              <button id="addNoteBtn">Add Note</button>
+            </section>
+      
+            <form id="searchForm" method="get">
+              <input type="number" id="page" name="page" min="0" max="85" required placeholder="Page Number" autocomplete="off">
+              <button type="submit">Search Page Number</button>
+            </form>
+      
+            <div id="quickNavButtons"> 
+              <button onclick="updateImage(5)">Go to Table of Contents 1</button>
+              <button onclick="updateImage(6)">Go to Table of Contents 2</button>
+            </div>
+      
+            <button onclick="printImage()" id="printImageBtn">Print Image</button>
+      
+            <a href="{{ url_for('logout') }}" class="logout-link">Logout</a>
+          </div>
+      
+          <!-- Right side: Next -->
+          <div class="side-button">
+            <button id="nextBtn">Next</button>
+          </div>
+        </div> 
+            <script>
+              let maxPages = 0;
+              let currentPage = 0;
+            
+              function updateImage(page) {
+                fetch(`/get_image_url?page=${page}`)
+                  .then(response => response.json())
+                  .then(data => {
+                    const img = document.getElementById('photo');
+                    if (data.image_url) {
+                      img.src = data.image_url;
+                      img.style.display = 'block';
+                      currentPage = page;
+                      document.getElementById('page').value = currentPage;
+                      fetchNotes(currentPage); // Fetch notes for the new page
+                    } else {
+                      alert('No image found for page ' + page);
+                    }
+                  });
+              }
+            
+              function printImage() {
+                const imageSrc = document.getElementById("photo").src;
+                const printWindow = window.open('', '_blank');
+                const htmlContent = `
+                  <html>
+                    <head>
+                      <title>Print Image</title>
+                    </head>
+                    <body style="margin:0; text-align:center;">
+                      <img id="print-img" src="${imageSrc}" style="max-width:100%; height:auto;">
+                      <script>
+                        const img = document.getElementById('print-img');
+                        img.onload = function() {
+                          window.focus();
+                          window.print();
+                          window.close();
+                        };
+                      <\/script>
+                    </body>
+                  </html>
+                `;
+                printWindow.document.open();
+                printWindow.document.write(htmlContent);
+                printWindow.document.close();
+              }
+            
+              document.addEventListener('DOMContentLoaded', () => {
+                // Get the max image count
+                fetch('/get_image_count')
+                  .then(response => response.json())
+                  .then(data => {
+                    maxPages = data.count;
+                    document.getElementById('page').max = maxPages - 1;
+                  });
+            
+                // Set initial page input value
+                document.getElementById('page').value = currentPage;
+            
+                // Form submission (Search)
+                document.getElementById('searchForm').addEventListener('submit', function(e) {
+                  e.preventDefault();
+                  const page = parseInt(document.getElementById('page').value);
+                  if (!isNaN(page)) {
+                    updateImage(page);
+                  }
+                });
+            
+                // Next button
+                document.getElementById('nextBtn').addEventListener('click', function () {
+                  const nextPage = (currentPage + 1) % maxPages;
+                  updateImage(nextPage);
+                });
+            
+                // Previous button
+                document.getElementById('prevBtn').addEventListener('click', function () {
+                  const prevPage = (currentPage - 1 + maxPages) % maxPages;
+                  updateImage(prevPage);
+                });
+              });
+
+              function fetchNotes(page) {
+                fetch(`/get_notes?page=${page}`)
+                  .then(res => res.json())
+                  .then(data => {
+                    const notesList = document.getElementById("notesList");
+                    notesList.innerHTML = "";
+
+                    data.notes.forEach(note => {
+                      const li = document.createElement("li");
+                      li.textContent = note.content;
+
+                      const deleteBtn = document.createElement("button");
+                      deleteBtn.innerHTML = "🗑️";
+                      deleteBtn.title = "Delete";
+                      deleteBtn.style.fontSize = "0.65rem";
+                      deleteBtn.style.marginLeft = "8px";
+                      deleteBtn.style.padding = "1px 4px";
+                      deleteBtn.style.cursor = "pointer";
+                      deleteBtn.style.border = "none";
+                      deleteBtn.style.background = "transparent";
+
+                      deleteBtn.onclick = function () {
+                        fetch(`/delete_note/${note.id}`, { method: "DELETE" })
+                          .then(res => res.json())
+                          .then(() => fetchNotes(currentPage));
+                      };
+
+                      li.appendChild(deleteBtn);
+                      notesList.appendChild(li);
+                    });
+                  });
+              }
+
+              function deleteNote(noteId) {
+                fetch(`/delete_note/${noteId}`, {
+                  method: "DELETE"
+                })
+                  .then(res => res.json())
+                  .then(data => {
+                    fetchNotes(currentPage); // Refresh notes after deletion
+                  });
+              }
+
+              document.getElementById("addNoteBtn").addEventListener("click", function () {
+                const note = document.getElementById("noteInput").value.trim();
+                if (note === "") return;
+
+                fetch("/save_note", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ page: currentPage, note: note }),
+                })
+                  .then(res => res.json())
+                  .then(() => {
+                    document.getElementById("noteInput").value = "";
+                    fetchNotes(currentPage); // Refresh notes
+                  });
+              });
+
+            </script>
+        </main>
+        <footer>
+            <p>&copy; Lucio Bennardo 2025</p>
+        </footer>
+        
+    </body>
+
