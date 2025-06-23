@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: flask-app
+    env: python
+    buildCommand: ""  # No build needed for Flask
+    startCommand: gunicorn app:app  # Change 'app' if your main file isn't named app.py
+    autoDeploy: true
+    envVars:
+      - key: SECRET_KEY
+        value: 5537eb4aa1888c6fa5367fc4475859e66aa3dc2664ed2e230aeea3e56775d366  # Replace with a real secret or set via Render dashboard
