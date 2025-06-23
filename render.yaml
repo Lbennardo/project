@@ -7,4 +7,4 @@ services:
     autoDeploy: true
     envVars:
       - key: SECRET_KEY
-        value: 5537eb4aa1888c6fa5367fc4475859e66aa3dc2664ed2e230aeea3e56775d366  # Replace with a real secret or set via Render dashboard
+        value:   # Replace with a real secret or set via Render dashboard
